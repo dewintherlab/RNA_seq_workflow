@@ -1,1 +1,43 @@
-fef
+#! /bin/bash
+#SBATCH --job-name=trim_galore_job
+#SBATCH --output=trim_galore_job_%j.output
+#SBATCH --error=trim_galore_job_%j.log
+####################################################################
+# Function to log messages
+####################################################################
+log() {
+        echo -e "$(date +"%Y-%m-%d %H:%M:%S") - $1"
+}
+
+
+#######################################################################
+
+# Trim Galore is a wrapper around Cutadapt and FastQC to consistently
+# apply adapter and quality trimming to FastQ files,
+# with extra functionality for RRBS data.
+
+#######################################################################
+
+# Check Trim Galore version
+
+version=$(trim_galore --version)
+log "System's version of Trim Galore: \n $version"
+
+# Run trim_galore
+cd $EXPDIR
+
+if [[ "$SEQ" == "paired" ]]; then
+
+        log "parallel -j $PARALLEL --xapply trim_galore \"$EXTRA\" --paired -o $OUTDIR ::: *{_,-}R1*.fastq.gz ::: *{_,-}R2*fastq.gz"
+        parallel -j $PARALLEL --xapply trim_galore "$EXTRA" --paired -o $OUTDIR ::: *R1*.fastq.gz ::: *R2*.fastq.gz
+
+else
+# If SEQ is single
+
+        log "parallel -j $PARALLEL trim_galore \"$EXTRA\" -o $OUTDIR ::: *.fastq.gz"
+        parallel -j $PARALLEL trim_galore "$EXTRA" -o $OUTDIR ::: *.fastq.gz
+
+fi
+
+log "Waiting for Trim Galore operation to complete..."
+wait
