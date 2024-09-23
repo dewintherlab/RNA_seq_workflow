@@ -1,0 +1,150 @@
+#! /bin/bash
+#SBATCH --job-name=mapping_HISAT2_job
+#SBATCH --output=mapping_HISAT2_job_%j.output
+#SBATCH --error=mapping_HISAT2_job_%j.log
+####################################################################
+# Function to log messages
+####################################################################
+log() {
+        echo -e "$(date +"%Y-%m-%d %H:%M:%S") - $1"
+}
+
+
+#######################################################################
+
+# HISAT2: Map reads to reference genome
+
+#######################################################################
+
+# Run HISAT2
+cd $EXPDIR
+
+## Make output directory
+
+if [[ -d $EXPDIR/mapped_reads_2 ]]; then
+        OUTDIR=$EXPDIR/mapped_reads
+else
+        mkdir $EXPDIR/mapped_reads
+        OUTDIR=$EXPDIR/mapped_reads
+fi
+
+log "Mapped reads will be written to $EXPDIR/mapped_reads_2"
+
+# Check if EXTRA options should be added to hisat2 command
+if [[ -z "$EXTRA" ]]; then
+
+        # No extra hisat2 options, run with default parameters
+        if [[ "$SEQ" == "paired" ]]; then
+
+                for FASTQ1 in ./*_R1_*trimmed*fastq*; do
+
+                        log "Mapping paired-end reads. No extra options provided"
+
+                        FASTQ2="${FASTQ1/_R1_/_R2_}"
+
+                        log "1st pair: "$'\n'$FASTQ1,$FASTQ2""
+
+                        # Set basename without suffix and run number
+                        FASTQ="${FASTQ1/_R1_/_}"
+                        OUTNAME=$(basename "${FASTQ%.fastq*}")
+
+                        log "Basename of output bam file for this pair: $OUTNAME"
+
+                        # Check if we are keeping the unpaired/unaligned reads
+                        if [[ "$UNPAIRED" == "YES" ]]; then
+                                # Keep unpaired reads
+                                log "Keeping unpaired reads"
+
+                                log "\(hisat2 -p $MYTHREADS -x \"$INDEX\" -1 \"$FASTQ1\" -2 \"$FASTQ2\" -U \"${FASTQ1/trimmed/unpaired}\",\"${FASTQ2/trimmed/unpaired}\" --mm --add-chrname --new-summary --no-spliced-alignment --un-gz \"$OUTDIR/${OUTNAME}.unpaired.unaligned.gz\" --al-gz \"$OUTDIR/${OUTNAME}.unpaired.aligend.gz\" | samtools view -b -\) 1> \"$OUTDIR/${OUTNAME}.bam\" 2> \"$OUTDIR/${OUTNAME}.HISAT2_stats.txt\" &"
+
+                                (hisat2 -p $MYTHREADS -x "$INDEX" -1 "$FASTQ1" -2 "$FASTQ2" -U "${FASTQ1/trimmed/unpaired}","${FASTQ2/trimmed/unpaired}" --mm --add-chrname --new-summary --no-spliced-alignment --un-gz "$OUTDIR/${OUTNAME}.unpaired.unaligned.gz" --al-gz "$OUTDIR/${OUTNAME}.unpaired.aligend.gz" | samtools view -b -) 1> "$OUTDIR/${OUTNAME}.bam" 2> "$OUTDIR/${OUTNAME}.HISAT2_stats.txt" &
+
+                        else
+                                # Don't keep unpaired reads
+                                log "Unpaired reads will be discarded"
+
+                                log "\(hisat2 -p $MYTHREADS -x \"$INDEX\" -1 \"$FASTQ1\" -2 \"$FASTQ2\" --mm --add-chrname --new-summary --no-spliced-alignment | samtools view -b -\) 1> \"$OUTDIR/${OUTNAME}.bam\" 2> \"$OUTDIR/${OUTNAME}.HISAT2_stats.txt\" &"
+
+                                (hisat2 -p $MYTHREADS -x "$INDEX" -1 "$FASTQ1" -2 "$FASTQ2" --mm --add-chrname --new-summary --no-spliced-alignment | samtools view -b -) 1> "$OUTDIR/${OUTNAME}.bam" 2> "$OUTDIR/${OUTNAME}.HISAT2_stats.txt" &
+                        fi
+                done
+
+        else
+        # If we have single-end reads
+                for FASTQ in ./*trimmed*fastq*; do
+                        log "Mapping single-end reads"
+
+                        log "Processing file $FASTQ"
+
+                        # Set basename without suffix
+                        OUTNAME=$(basename "${FASTQ%.fastq*}")
+                        log "Basename of output bam file: $OUTNAME"
+
+                        log "\(hisat2 -p $MYTHREADS -x \"$INDEX\" -U \"$FASTQ\" --mm --add-chrname --new-summary --no-spliced-alignment | samtools view -b -\) 1> \"$OUTDIR/${OUTNAME}.bam\" \"$OUTDIR/${OUTNAME}.bam\" \"$OUTDIR/${OUTNAME}.HISAT2_stats.txt\" &"
+
+                        (hisat2 -p $MYTHREADS -x "$INDEX" -U "$FASTQ" --mm --add-chrname --new-summary --no-spliced-alignment | samtools view -b -) 1> "$OUTDIR/${OUTNAME}.bam"  2> "$OUTDIR/${OUTNAME}.HISAT2_stats.txt" &
+
+                done
+
+        fi
+
+else
+# Run with EXTRA parameters
+        if [[ "$SEQ" == "paired" ]]; then
+
+                for FASTQ1 in ./*R1*trimmed*fastq*; do
+                        log "Mapping paired-end reads. Running with the following extra options: $EXTRA"
+
+                        FASTQ2="${FASTQ1/_R1_/_R2_}"
+
+                        log "1st pair: "$'\n'$FASTQ1,$FASTQ2""
+
+                        # Set basename without suffix and run number
+                        FASTQ="${FASTQ1/_R1_/_}"
+                        OUTNAME=$(basename "${FASTQ%.fastq*}")
+
+                        log "Basename of output bam file for this pair: $OUTNAME"
+
+                        # Check if we are keeping the unpaired reads
+                        if [[ "$UNPAIRED" == "YES" ]]; then
+                                # Keep unpaired reads
+                                log "Keeping unpaired reads"
+
+                                log "\(hisat2 -p $MYTHREADS -x \"$INDEX\" -1 \"$FASTQ1\" -2 \"$FASTQ2\" -U \"${FASTQ1/trimmed/unpaired}\",\"${FASTQ2/trimmed/unpaired}\" --mm --add-chrname --new-summary --no-spliced-alignment --un-gz \"$OUTDIR/${OUTNAME}.unpaired.unaligned.gz\" --al-gz \"$OUTDIR/${OUTNAME}.unpaired.aligend.gz\" \"$EXTRA\" | samtools view -b -\) 1> \"$OUTDIR/${OUTNAME}.bam\" 2> \"$OUTDIR/${OUTNAME}.HISAT2_stats.txt\" &"
+
+                                (hisat2 -p $MYTHREADS -x "$INDEX" -1 "$FASTQ1" -2 "$FASTQ2" -U "${FASTQ1/trimmed/unpaired}","${FASTQ2/trimmed/unpaired}" --mm --add-chrname --new-summary --no-spliced-alignment --un-gz "$OUTDIR/${OUTNAME}.unpaired.unaligned.gz" --al-gz "$OUTDIR/${OUTNAME}.unpaired.aligend.gz" "$EXTRA" | samtools view -b -) 1> "$OUTDIR/${OUTNAME}.bam" 2> "$OUTDIR/${OUTNAME}.HISAT2_stats.txt" &
+
+                        else
+                                # Don't keep unpaired reads
+                                log "Unpaired reads will be discarded"
+
+                                log "\(hisat2 -p $MYTHREADS -x \"$INDEX\" -1 \"$FASTQ1\" -2 \"$FASTQ2\" --mm --add-chrname --new-summary --no-spliced-alignment \"$EXTRA\" | samtools view -b -\) 1> \"$OUTDIR/${OUTNAME}.bam 2> \"$OUTDIR/${OUTNAME}.HISAT2_stats.txt\" &"
+
+                                (hisat2 -p $MYTHREADS -x "$INDEX" -1 "$FASTQ1" -2 "$FASTQ2" --mm --add-chrname --new-summary --no-spliced-alignment "$EXTRA" | samtools view -b -) 1> "$OUTDIR/${OUTNAME}.bam" 2> "$OUTDIR/${OUTNAME}.HISAT2_stats.txt" &
+                        fi
+                done
+        else
+        # If we have single-end reads
+                for FASTQ in ./*trimmed*fastq*; do
+                        log "Mapping single-end reads"
+
+                        log "Processing file $FASTQ"
+
+                        # Set basename without suffix
+                        OUTNAME=$(basename "${FASTQ%.fastq*}")
+
+                        log "Basename of output bam file: $OUTNAME"
+
+                        log "\(hisat2 -p $MYTHREADS -x \"$INDEX\" -U \"$FASTQ\" --mm --add-chrname --new-summary --no-spliced-alignment \"$EXTRA\" | samtools view -b -\) 1> \"$OUTDIR/${OUTNAME}.bam 2> \"$OUTDIR/${OUTNAME}.HISAT2_stats.txt\" &"
+
+                        (hisat2 -p $MYTHREADS -x "$INDEX" -U "$FASTQ" --mm --add-chrname --new-summary --no-spliced-alignment "$EXTRA" | samtools view -b -) 1> "$OUTDIR/${OUTNAME}.bam" 2> "$OUTDIR/${OUTNAME}.HISAT2_stats.txt" &
+
+                done
+
+        fi
+fi
+
+
+
+log "Waiting for HISAT2 to complete..."
+wait
