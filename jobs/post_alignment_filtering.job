@@ -1,0 +1,50 @@
+#! /bin/bash
+#SBATCH --job-name=filtering_job
+#SBATCH --output=filtering_job_%j.output
+#SBATCH --error=filtering_job_%j.log
+####################################################################
+# Function to log messages
+####################################################################
+log() {
+        echo -e "$(date +"%Y-%m-%d %H:%M:%S") - $1"
+}
+
+
+#############
+
+# Steps:
+# Collate, fixmate, sort BAM files.
+# Remove secondary and supplementary (chimeric) reads: FLAGS --> 256, 2048 (see https://broadinstitute.github.io/picard/explain-flags.html)
+# Remove reads with a MAPQ value lower than 20
+# Index filtered and sorted BAM files
+
+#############
+
+# Run filtering steps
+cd $BAMDIR
+
+for f in $BAMDIR/*.bam; do
+
+log "Processing file $f"
+
+OUTNAME=$(basename "${f%.bam}")
+
+log "samtools collate -@ $THREADS -O $f collate.${OUTNAME}.tmp | samtools fixmate -@ $THREADS -mu - - | samtools sort -@ $THREADS -u - | samtools view -@ 6 -F 256,2048 -q 20 -h - -b -o $OUTDIR/${OUTNAME}_filtered.bam"
+
+samtools collate -@ $THREADS $f -O collate.${OUTNAME}.tmp | samtools fixmate -@ $THREADS -mu - - | samtools sort -@ $THREADS -u - | samtools view -@ 6 -F 256,2048 -q 20 -h - -b -o $OUTDIR/${OUTNAME}_filtered.bam
+done
+
+wait
+
+# Index filtered BAM files
+
+for f in $OUTDIR/*filtered.bam; do
+
+log "Indexing filtered and sorted BAM file: samtools index -@ $THREADS $f"
+
+samtools index -@ $THREADS $f
+
+done
+
+log "Waiting for operation to complete..."
+wait
