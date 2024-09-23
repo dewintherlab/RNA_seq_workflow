@@ -1,0 +1,113 @@
+#! /bin/bash
+#SBATCH --job-name=Trimmomatic_job
+#SBATCH --output=Trimmomatic_job_%j.output
+#SBATCH --error=Trimmomatic_job_%j.log
+####################################################################
+# Function to log messages
+####################################################################
+log() {
+        echo -e "$(date +"%Y-%m-%d %H:%M:%S") - $1"
+}
+
+
+#######################################################################
+
+# Trimmomatic v0.39:
+# Perform trimming tasks for illumina paired-end and single ended data
+
+#######################################################################
+
+# Is the correct version of Trimmomatic in the system?
+log "Making sure the trimmomatic jar file is in your system's path..."
+
+which trimmomatic-0.39.jar > /dev/null || { log "Cannot find jar file. If you have installed Trimmomatic already, \
+                                                 add trimmomatic-0.39.jar path to your system's PATH. \
+                                \nIf not, please install the tool before running this script, exiting..."; exit 1; }
+
+JARPATH=$(which trimmomatic-0.39.jar)
+TRIMPATH=$(dirname "$JARPATH")
+
+# Copy adapter fasta to experiment dir
+if [[ ! -z "$ADAPTERS" ]]; then
+
+cp $TRIMPATH/adapters/$ADAPTERS $EXPDIR
+
+else
+# If ADAPTERS is an empty variable
+        if [[ "$SEQ" == "paired" ]]; then
+
+        ADAPTERS=TruSeq3-PE.fa
+        cp $TRIMPATH/adapters/$ADAPTERS $EXPDIR
+
+        else
+
+        ADAPTERS=TruSeq3-SE.fa
+        cp $TRIMPATH/adapters/$ADAPTERS $EXPDIR
+
+        fi
+fi
+
+log "Adapters used: $ADAPTERS"
+
+# Run Trimmomatic
+cd $EXPDIR
+
+if [[ "$SEQ" == "paired" ]]; then
+
+        for FASTQ1 in $EXPDIR/*_R1.*fastq*; do
+
+                FASTQ2=$(echo "$FASTQ1" | sed -E 's/[_\.-]R1[_\.-]?/R2/')
+
+                if [[ $FASTQ1 == *.gz ]]; then
+
+                SUFFIX="fastq.gz"
+
+                log "java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH PE -threads $THREADS $FASTQ1 $FASTQ2 ${FASTQ1%.fastq*}_trimmed.${SUFFIX} ${FASTQ1%.fastq*}_unpaired.${SUFFIX} \
+                        ${FASTQ2%.fastq*}_trimmed.${SUFFIX} ${FASTQ2%.fastq*}_unpaired.${SUFFIX} \
+                        ILLUMINACLIP:$ADAPTERS:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+
+                java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH PE -threads $THREADS $FASTQ1 $FASTQ2 ${FASTQ1%.fastq*}_trimmed.${SUFFIX} ${FASTQ1%.fastq*}_unpaired.${SUFFIX} ${FASTQ2%.fastq*}_trimmed.${SUFFIX}  ${FASTQ2%.fastq*}_unpaired.${SUFFIX} ILLUMINACLIP:${ADAPTERS}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+
+                else
+
+                SUFFIX="fastq"
+
+                log "java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH PE -threads $THREADS $FASTQ1 $FASTQ2 ${FASTQ1%.fastq}_trimmed.${SUFFIX} ${FASTQ1%.fastq}_unpaired.${SUFFIX} \
+                        ${FASTQ2%.fastq}_trimmed.${SUFFIX} ${FASTQ2%.fastq}_unpaired.${SUFFIX} \
+                        ILLUMINACLIP:$ADAPTERS:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+
+                 java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH PE -threads $THREADS $FASTQ1 $FASTQ2 ${FASTQ1%.fastq*}_trimmed.${SUFFIX} ${FASTQ1%.fastq}_unpaired.${SUFFIX} ${FASTQ2%.fastq*}_trimmed.${SUFFIX} ${FASTQ2%.fastq}_unpaired.${SUFFIX} ILLUMINACLIP:$TRIMPATH/adapters/${ADAPTERS}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+
+
+                fi
+
+        done
+
+else
+# If SEQ is single
+        for FASTQ in $EXPDIR/*fastq*; do
+
+                if [[ $FASTQ == *.gz ]]; then
+
+                SUFFIX="fastq.gz"
+
+                log "java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH SE -threads $THREADS $FASTQ ${FASTQ%.fastq*}_trimmed.${SUFFIX} \
+                     ILLUMINACLIP:$ADAPTERS:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+
+                java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH SE -threads $THREADS $FASTQ ${FASTQ%.fastq*}_trimmed.${SUFFIX} ILLUMINACLIP:$ADAPTERS:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+
+                else
+
+                SUFFIX="fastq"
+
+                log "java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH SE -threads $THREADS $FASTQ ${FASTQ%.fastq}_trimmed.${SUFFIX} \
+                     ILLUMINACLIP:$ADAPTERS:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+
+                java -Xms$HEAPSIZE -Xmx$MEM -jar $JARPATH SE -threads $THREADS $FASTQ ${FASTQ%.fastq}_trimmed.${SUFFIX} ILLUMINACLIP:$ADAPTERS:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+
+                fi
+        done
+fi
+
+log "Waiting for Trimmomatic operation to complete..."
+wait
