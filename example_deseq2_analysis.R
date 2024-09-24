@@ -32,21 +32,20 @@ library(readr)
 # Import featureCounts table
 
 setwd("/path/to/all_sample_featureCounts.txt")
-countdata <- read.table("all_sample_featureCounts.txt", header = TRUE, skip = 1, row.names = 1)
+countdata <- read.table("all_sample_featureCounts.txt", header = TRUE, skip = 1, row.names = 1, check.names = FALSE)
 tbl <- read_table("all_sample_featureCounts.txt.summary")
 
 # identify libraries with very few reads and remove them
 exclude <- colnames(tbl[,which(tbl[1,]<1000000)])
-exclude <- gsub("-", ".", exclude)
 countdata <- countdata[, !colnames(countdata) %in% exclude]
-
-# make sample names readable
-## write some code to adjust your sample names (colnames of countdata table) to something comprehensive and consistent
-## for example: "305-ctrl-rep1" (#donor-condition-replicate)
 
 # select only the columns with the read counts
 # last column before the samples is called "Length"
 countdata <- countdata %>% dplyr::select((grep("Length", colnames(countdata))+1):length(colnames(countdata)))
+
+# make sample names readable
+## write some code to adjust your sample names (colnames of countdata table) to something comprehensive and consistent
+## for example: "305-ctrl-rep1" (#donor-condition-replicate)
 
 # create metadata table
 metadata <- data.frame(sampleid = colnames(countdata))
