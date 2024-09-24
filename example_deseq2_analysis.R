@@ -37,6 +37,7 @@ tbl <- read_table("all_sample_featureCounts.txt.summary")
 
 # identify libraries with very few reads and remove them
 exclude <- colnames(tbl[,which(tbl[1,]<1000000)])
+exclude <- gsub("-", ".", exclude)
 countdata <- countdata[, !colnames(countdata) %in% exclude]
 
 # make sample names readable
